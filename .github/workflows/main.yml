@@ -1,0 +1,30 @@
+name: Build aplikasi (Windows & Mac)
+
+on:
+  workflow_dispatch:        # tombol "Run workflow" di tab Actions
+  push:
+    tags: ['v*']            # atau otomatis saat membuat tag versi, mis. v1.0.1
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm test
+      - run: npx electron-builder --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # Mac: lewati tanda tangan Apple Developer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
