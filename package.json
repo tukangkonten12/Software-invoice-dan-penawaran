@@ -1,0 +1,72 @@
+{
+  "name": "mhk-dokumen",
+  "productName": "MHK Dokumen",
+  "version": "1.0.0",
+  "description": "Pembuat invoice dan penawaran otomatis - PT. Memudahkan Hidup Kamu",
+  "author": "PT. Memudahkan Hidup Kamu",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "test": "node scripts/selftest.js"
+  },
+  "dependencies": {
+    "docx": "^9.15.0"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "id.co.mhk.dokumen",
+    "productName": "MHK Dokumen",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "dmg": {
+      "title": "MHK Dokumen"
+    }
+  }
+}
