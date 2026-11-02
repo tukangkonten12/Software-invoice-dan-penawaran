@@ -311,7 +311,7 @@ function viewInvoice(root, rec) {
       h('p', { class: 'hint', style: 'margin:10px 0 0' }, 'Tips: isi Qty dengan persen (mis. 10%) agar total dihitung sebagai persentase dari harga. Baris fee otomatis mengikuti total baris yang bertuliskan "budget".'),
       sumBox
     ),
-    h('div', { class: 'card' }, h('h3', {}, 'Catatan (opsional)'), area(inv.catatan, (v) => { inv.catatan = v; preview.update(); }, 2))
+    h('div', { class: 'card' }, h('h3', {}, 'Catatan (opsional)'), area(inv.catatan, (v) => { inv.catatan = v; preview.update(); }, 2), h('p', { class: 'hint', style: 'margin:8px 0 0' }, 'Catatan tampil di sebelah kanan data rekening (maksimal ± 4 baris; sisanya dipotong di PDF).'))
   );
 
   const dl = h('datalist', { id: 'layananList' }, S.settings.layanan.map((l) => h('option', { value: l.desc })));
