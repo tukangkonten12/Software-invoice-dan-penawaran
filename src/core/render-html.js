@@ -78,10 +78,13 @@ table.items th:nth-child(2){text-align:center}
 .pay{display:flex;justify-content:space-between;margin-top:8mm;align-items:flex-start}
 .pm{width:28%;background:${BROWN};color:#fff;font-weight:700;padding:2mm 2.2mm;font-size:11pt;text-transform:uppercase}
 .gt{width:45%;background:${BROWN};color:#fff;font-weight:700;padding:2mm 2.2mm;font-size:11pt;display:flex;justify-content:space-between;text-transform:uppercase}
-.bank{margin-top:7mm;font-family:Arimo,Arial,Helvetica,sans-serif;font-size:10.5pt;color:#222}
+.under{display:flex;justify-content:space-between;align-items:flex-start;margin-top:5.5mm;max-height:26mm;overflow:hidden}
+.bank{font-family:Arimo,Arial,Helvetica,sans-serif;font-size:10.5pt;color:#222}
 .bank div{display:flex;margin-bottom:3.2mm}
 .bank span:first-child{width:28mm}
-.note{margin-top:9mm;font-size:9.5pt;color:#444;white-space:pre-wrap;line-height:1.5}
+.note{width:45%;font-family:Arimo,Arial,Helvetica,sans-serif;font-size:9pt;color:#333;line-height:1.35;border-left:.8mm solid ${AMBER};padding-left:3mm}
+.note b{display:block;font-size:10pt;margin-bottom:1mm;color:#222}
+.note p{white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;max-height:49pt;overflow:hidden}
 .foot{position:absolute;left:21mm;right:21mm;bottom:22mm;font-family:'Poppins',sans-serif;font-size:10pt}
 .foot .rule2{position:relative;height:1.2mm;margin-bottom:6mm}
 .foot .rule2:before{content:'';position:absolute;left:0;right:0;top:.5mm;height:.5mm;background:#777}
@@ -109,12 +112,14 @@ table.items th:nth-child(2){text-align:center}
     <div><span class="l">${taxLabel}</span><span class="v">${taxVal}</span></div>
   </div>
   <div class="pay"><div class="pm">Payment Method :</div><div class="gt"><span>Grand Total :</span><span>RP. ${F.angka(c.grand)}</span></div></div>
-  <div class="bank">
-    <div><span>Bank</span><span>: ${esc(bank.nama)}</span></div>
-    <div><span>Account</span><span>: ${esc(bank.atasNama)}</span></div>
-    <div><span>No. Rekening</span><span>: ${esc(bank.rekening)}</span></div>
+  <div class="under">
+    <div class="bank">
+      <div><span>Bank</span><span>: ${esc(bank.nama)}</span></div>
+      <div><span>Account</span><span>: ${esc(bank.atasNama)}</span></div>
+      <div><span>No. Rekening</span><span>: ${esc(bank.rekening)}</span></div>
+    </div>
+    ${String(inv.catatan || '').trim() ? `<div class="note"><b>Catatan :</b><p>${esc(String(inv.catatan).trim())}</p></div>` : ''}
   </div>
-  ${inv.catatan ? `<div class="note">${esc(inv.catatan)}</div>` : ''}
   <div class="foot"><div class="rule2"></div><div class="row">
     <div class="it"><svg viewBox="0 0 24 24" fill="none" stroke="${AMBER}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg><span>${esc(cfg.footerTelepon)}</span></div>
     <div class="it"><svg viewBox="0 0 24 24" fill="none" stroke="${AMBER}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${esc(cfg.footerAlamat)}</span></div>
