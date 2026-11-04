@@ -31,13 +31,27 @@ const parseAngka = (s) => {
   return d ? parseInt(d, 10) : 0;
 };
 const isPersen = (q) => /%\s*$/.test(String(q == null ? '' : q));
-function totalBaris(it) {
+function brutoBaris(it) {
   const harga = parseAngka(it.price);
   const q = String(it.qty == null ? '' : it.qty).trim();
   if (isPersen(q)) return Math.round((harga * (parseFloat(q.replace(',', '.')) || 0)) / 100);
   const n = parseFloat(q.replace(',', '.'));
   return Math.round(harga * (isNaN(n) ? 0 : n));
 }
+/* Diskon: "10%" = persen dari base, selain itu nominal Rupiah. Tidak negatif & tidak melebihi base. */
+function hitungDiskon(disc, base) {
+  const t = String(disc == null ? '' : disc).trim();
+  if (!t) return 0;
+  let d;
+  if (isPersen(t)) {
+    const pct = Math.min(Math.max(parseFloat(t.replace(',', '.')) || 0, 0), 100);
+    d = Math.round((base * pct) / 100);
+  } else {
+    d = Math.max(parseAngka(t), 0);
+  }
+  return Math.max(0, Math.min(d, Math.max(base, 0)));
+}
+const totalBaris = (it) => brutoBaris(it) - hitungDiskon(it.disc, brutoBaris(it));
 const hariIni = () => {
   const d = new Date();
   const p = (x) => String(x).padStart(2, '0');
@@ -179,8 +193,9 @@ function invoiceBaru() {
     nomor: nomorOtomatis(hariIni()),
     nomorManual: false,
     taxPct: S.settings.invoice.ppnBawaan || 0,
+    discTotal: '',
     catatan: '',
-    items: [{ desc: '', qty: '1', price: '' }],
+    items: [{ desc: '', qty: '1', price: '', disc: '' }],
     status: 'Belum dibayar',
     _baru: true,
   };
@@ -213,14 +228,22 @@ function viewInvoice(root, rec) {
     });
   }
 
+  function hitungTotal() {
+    const sub = inv.items.reduce((a, it) => a + totalBaris(it), 0);
+    const dTot = hitungDiskon(inv.discTotal, sub);
+    const after = sub - dTot;
+    const tax = Math.round((after * (parseFloat(String(inv.taxPct).replace(',', '.')) || 0)) / 100);
+    return { sub, dTot, tax, grand: after + tax };
+  }
+
   const sumBox = h('div', { class: 'sum' });
   function paintTotals() {
-    const sub = inv.items.reduce((a, it) => a + totalBaris(it), 0);
-    const tax = Math.round((sub * (parseFloat(String(inv.taxPct).replace(',', '.')) || 0)) / 100);
+    const { sub, dTot, tax, grand } = hitungTotal();
     sumBox.replaceChildren(
       h('div', {}, h('span', {}, 'Sub Total'), h('span', {}, rupiah(sub))),
+      ...(dTot ? [h('div', {}, h('span', {}, 'Diskon'), h('span', {}, '- ' + rupiah(dTot)))] : []),
       h('div', {}, h('span', {}, 'Tax / PPN'), h('span', {}, tax ? rupiah(tax) : '-')),
-      h('div', { class: 'gt' }, h('span', {}, 'Grand Total'), h('span', {}, rupiah(sub + tax)))
+      h('div', { class: 'gt' }, h('span', {}, 'Grand Total'), h('span', {}, rupiah(grand)))
     );
     inv.items.forEach((it, i) => {
       const c = itemsBody && itemsBody.querySelector(`[data-total="${i}"]`);
@@ -238,7 +261,7 @@ function viewInvoice(root, rec) {
     itemsBody.replaceChildren(
       ...inv.items.map((it, i) =>
         h('tr', {},
-          h('td', { style: 'width:40%' }, text(it.desc, (v) => {
+          h('td', { style: 'width:32%' }, text(it.desc, (v) => {
             it.desc = v;
             const svc = S.settings.layanan.find((l) => l.desc.toLowerCase() === v.toLowerCase());
             if (svc && !parseAngka(it.price)) {
@@ -248,10 +271,11 @@ function viewInvoice(root, rec) {
             }
             refresh();
           }, { list: 'layananList', ph: 'Nama layanan' })),
-          h('td', { style: 'width:11%' }, text(it.qty, (v) => { it.qty = v; refresh(); }, { cls: 'num', ph: '1 atau 10%' })),
-          h('td', { style: 'width:19%' }, priceInput(it, i)),
+          h('td', { style: 'width:10%' }, text(it.qty, (v) => { it.qty = v; refresh(); }, { cls: 'num', ph: '1 atau 10%' })),
+          h('td', { style: 'width:17%' }, priceInput(it, i)),
+          h('td', { style: 'width:15%' }, text(it.disc, (v) => { it.disc = v; refresh(); }, { cls: 'num', ph: '10% / 50.000' })),
           h('td', { class: 'tot', 'data-total': i }, rupiah(totalBaris(it))),
-          h('td', { style: 'width:34px' }, h('button', { class: 'btn sm dan', title: 'Hapus baris', onclick: () => { inv.items.splice(i, 1); if (!inv.items.length) inv.items.push({ desc: '', qty: '1', price: '' }); paintItems(); refresh(); } }, '✕'))
+          h('td', { style: 'width:34px' }, h('button', { class: 'btn sm dan', title: 'Hapus baris', onclick: () => { inv.items.splice(i, 1); if (!inv.items.length) inv.items.push({ desc: '', qty: '1', price: '', disc: '' }); paintItems(); refresh(); } }, '✕'))
         )
       )
     );
@@ -274,7 +298,7 @@ function viewInvoice(root, rec) {
       if (v === '') return;
       const l = S.settings.layanan[+v];
       const last = inv.items[inv.items.length - 1];
-      const row = { desc: l.desc, qty: '1', price: l.price };
+      const row = { desc: l.desc, qty: '1', price: l.price, disc: '' };
       if (last && !last.desc && !parseAngka(last.price)) inv.items[inv.items.length - 1] = row;
       else inv.items.push(row);
       svcSelect.value = '';
@@ -296,18 +320,23 @@ function viewInvoice(root, rec) {
     h('div', { class: 'card' },
       h('h3', {}, 'Rincian layanan'),
       h('table', { class: 'it' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Deskripsi'), h('th', {}, 'Qty'), h('th', {}, 'Harga'), h('th', { style: 'text-align:right' }, 'Total'), h('th', {}))),
+        h('thead', {}, h('tr', {}, h('th', {}, 'Deskripsi'), h('th', {}, 'Qty'), h('th', {}, 'Harga'), h('th', {}, 'Diskon'), h('th', { style: 'text-align:right' }, 'Total'), h('th', {}))),
         itemsBody
       ),
       h('div', { class: 'row', style: 'margin-top:10px' },
-        h('button', { class: 'btn sm', onclick: () => { inv.items.push({ desc: '', qty: '1', price: '' }); paintItems(); refresh(); } }, '+ Baris kosong'),
+        h('button', { class: 'btn sm', onclick: () => { inv.items.push({ desc: '', qty: '1', price: '', disc: '' }); paintItems(); refresh(); } }, '+ Baris kosong'),
         h('button', { class: 'btn sm', title: 'Menambah baris fee berupa persen dari total budget iklan', onclick: () => {
-          inv.items.push({ desc: 'Fee jasa pengelolaan iklan', qty: '10%', price: sumBudget(), auto: true });
+          inv.items.push({ desc: 'Fee jasa pengelolaan iklan', qty: '10%', price: sumBudget(), disc: '', auto: true });
           paintItems();
           refresh();
         } }, '+ Fee pengelolaan iklan (%)'),
         svcSelect
       ),
+      h('div', { class: 'row', style: 'margin-top:14px;justify-content:flex-end;align-items:center;gap:10px' },
+        h('span', { style: 'font-weight:600' }, 'Diskon total'),
+        (() => { const el = text(inv.discTotal, (v) => { inv.discTotal = v; refresh(); }, { cls: 'num', ph: '10% atau 100.000' }); el.style.width = '170px'; return el; })()
+      ),
+      h('p', { class: 'hint', style: 'margin:10px 0 0' }, 'Diskon: isi persen (mis. 10%) atau nominal Rupiah (mis. 50.000). Diskon per baris mengurangi total baris itu; Diskon total mengurangi Sub Total sebelum PPN.'),
       h('p', { class: 'hint', style: 'margin:10px 0 0' }, 'Tips: isi Qty dengan persen (mis. 10%) agar total dihitung sebagai persentase dari harga. Baris fee otomatis mengikuti total baris yang bertuliskan "budget".'),
       sumBox
     ),
@@ -329,7 +358,7 @@ function viewInvoice(root, rec) {
 
   function dataInvoice() {
     const d = clone(inv);
-    d.items = d.items.map((i) => ({ desc: i.desc, qty: i.qty, price: i.price }));
+    d.items = d.items.map((i) => ({ desc: i.desc, qty: i.qty, price: i.price, disc: i.disc || '' }));
     return d;
   }
   function validasi() {
@@ -339,11 +368,9 @@ function viewInvoice(root, rec) {
     return null;
   }
   async function simpanRiwayatInvoice() {
-    const sub = inv.items.reduce((a, it) => a + totalBaris(it), 0);
-    const tax = Math.round((sub * (parseFloat(String(inv.taxPct).replace(',', '.')) || 0)) / 100);
     const r = await api.saveHistory({
       id: inv.id, jenis: 'invoice', judul: `Invoice ${inv.nomor}`, nomor: inv.nomor, klien: inv.klien,
-      total: sub + tax, tanggal: inv.tanggal, status: inv.status || 'Belum dibayar', data: dataInvoice(),
+      total: hitungTotal().grand, tanggal: inv.tanggal, status: inv.status || 'Belum dibayar', data: dataInvoice(),
     });
     S.history = r.history;
     S.settings = r.settings;
