@@ -47,7 +47,8 @@ function isPersen(qty) {
   return /%\s*$/.test(String(qty == null ? '' : qty));
 }
 
-function totalBaris(it) {
+/** Total baris sebelum diskon (qty x harga, atau persen dari harga). */
+function brutoBaris(it) {
   const harga = parseAngka(it.price);
   const q = String(it.qty == null ? '' : it.qty).trim();
   if (isPersen(q)) {
@@ -58,12 +59,41 @@ function totalBaris(it) {
   return Math.round(harga * (isNaN(n) ? 0 : n));
 }
 
+/**
+ * Diskon: "10%" = persen dari base, selain itu dianggap nominal Rupiah ("50.000").
+ * Hasil tidak pernah negatif dan tidak pernah melebihi base.
+ */
+function hitungDiskon(disc, base) {
+  const t = String(disc == null ? '' : disc).trim();
+  if (!t) return 0;
+  let d;
+  if (isPersen(t)) {
+    const pct = Math.min(Math.max(parseFloat(t.replace(',', '.')) || 0, 0), 100);
+    d = Math.round((base * pct) / 100);
+  } else {
+    d = Math.max(parseAngka(t), 0);
+  }
+  return Math.max(0, Math.min(d, Math.max(base, 0)));
+}
+
+/** Nilai diskon satu baris (Rupiah). */
+function diskonBaris(it) {
+  return hitungDiskon(it.disc, brutoBaris(it));
+}
+
+/** Total baris setelah diskon baris. */
+function totalBaris(it) {
+  return brutoBaris(it) - diskonBaris(it);
+}
+
 function hitungInvoice(inv) {
   const items = (inv.items || []).filter((it) => String(it.desc || '').trim() || parseAngka(it.price));
   const sub = items.reduce((a, it) => a + totalBaris(it), 0);
+  const diskonTotal = hitungDiskon(inv.discTotal, sub);
+  const afterDisc = sub - diskonTotal;
   const taxPct = parseFloat(String(inv.taxPct || 0).replace(',', '.')) || 0;
-  const tax = Math.round((sub * taxPct) / 100);
-  return { items, sub, taxPct, tax, grand: sub + tax };
+  const tax = Math.round((afterDisc * taxPct) / 100);
+  return { items, sub, diskonTotal, afterDisc, taxPct, tax, grand: afterDisc + tax };
 }
 
 /** Ganti {klien}, {fee}, dst. */
@@ -128,4 +158,4 @@ function namaFile(s) {
     .slice(0, 90);
 }
 
-module.exports = { BULAN, angka, rupiah, parseAngka, sel, tanggalID, hariIniISO, isPersen, totalBaris, hitungInvoice, isiVar, runs, parseBody, esc, namaFile };
+module.exports = { BULAN, angka, rupiah, parseAngka, sel, tanggalID, hariIniISO, isPersen, brutoBaris, hitungDiskon, diskonBaris, totalBaris, hitungInvoice, isiVar, runs, parseBody, esc, namaFile };
