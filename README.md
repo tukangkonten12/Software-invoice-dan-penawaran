@@ -22,7 +22,11 @@ Semua data tersimpan **di komputer sendiri** (tanpa internet, tanpa akun).
 2. Isi layanan, Qty, dan Harga. Total terhitung otomatis.
    - Untuk fee persen, isi Qty dengan `10%` (atau klik **+ Fee pengelolaan iklan (%)**; harganya otomatis mengikuti total baris yang berisi kata "budget").
    - Layanan yang sering dipakai bisa disimpan di *Pengaturan* dan dipilih lewat menu "Tambah dari layanan tersimpan".
-3. Klik **Simpan PDF**. Nomor invoice berikutnya naik sendiri.
+3. **Diskon** (opsional):
+   - *Per baris*: isi kolom **Diskon** di baris layanan, bisa persen (`10%`) atau nominal (`50.000`).
+   - *Total keseluruhan*: isi **Diskon total** di bawah tabel (`10%` atau `100.000`). Dihitung dari Sub Total, **sebelum** PPN.
+   - Kolom Disc dan baris Diskon hanya muncul di PDF jika diisi.
+4. Klik **Simpan PDF**. Nomor invoice berikutnya naik sendiri.
 
 **Penawaran**
 1. Menu *Penawaran Baru* → pilih salah satu dari 4 template.
