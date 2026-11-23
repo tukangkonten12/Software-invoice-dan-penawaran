@@ -95,6 +95,86 @@ function text(value, onInput, o = {}) {
 function area(value, onInput, rows = 4) {
   return h('textarea', { rows, value: value == null ? '' : value, oninput: (e) => onInput(e.target.value) });
 }
+/**
+ * Kotak teks dengan toolbar pemformatan.
+ *  B     : menebalkan teks terpilih (**teks**), klik lagi untuk melepas. Pintasan Ctrl/Cmd+B.
+ *  Judul : baris menjadi judul tebal      Biasa : baris menjadi paragraf biasa (awalan "~ ")
+ *  Poin  : baris menjadi bullet (awalan "- ")
+ * o.lineTools=false -> hanya tombol B; o.lineTools=['biasa'] -> pilih tombol baris yang tampil.
+ * o.autoBold={ get, set } -> tampilkan kotak centang "baris biasa otomatis tebal".
+ */
+function richArea(value, onInput, rows = 4, o = {}) {
+  const ta = h('textarea', { rows, value: value == null ? '' : value });
+  const commit = () => onInput(ta.value);
+  ta.addEventListener('input', commit);
+
+  const setText = (txt, selStart, selEnd) => {
+    ta.value = txt;
+    ta.focus();
+    ta.setSelectionRange(selStart, selEnd);
+    commit();
+  };
+  const tebal = () => {
+    const s = ta.selectionStart;
+    const e = ta.selectionEnd;
+    const v = ta.value;
+    const sel = v.slice(s, e);
+    if (v.slice(s - 2, s) === '**' && v.slice(e, e + 2) === '**') {
+      // sudah tebal -> lepas
+      setText(v.slice(0, s - 2) + sel + v.slice(e + 2), s - 2, e - 2);
+    } else if (/^\*\*[\s\S]*\*\*$/.test(sel) && sel.length >= 4) {
+      setText(v.slice(0, s) + sel.slice(2, -2) + v.slice(e), s, e - 4);
+    } else if (s === e) {
+      setText(v.slice(0, s) + '****' + v.slice(e), s + 2, s + 2);
+    } else {
+      setText(v.slice(0, s) + '**' + sel + '**' + v.slice(e), s + 2, e + 2);
+    }
+  };
+  const barisTerpilih = (fn) => {
+    const v = ta.value;
+    const a = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+    let b = v.indexOf('\n', ta.selectionEnd);
+    if (b < 0) b = v.length;
+    const baru = v.slice(a, b).split('\n').map(fn).join('\n');
+    setText(v.slice(0, a) + baru + v.slice(b), a, a + baru.length);
+  };
+  const bersih = (l) => l.replace(/^(~|-|•)\s+/, '');
+  const biasa = () => {
+    // jika semua baris sudah "~ " -> lepas, selain itu pasang
+    const v = ta.value;
+    const a = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+    let b = v.indexOf('\n', ta.selectionEnd);
+    if (b < 0) b = v.length;
+    const semua = v.slice(a, b).split('\n').filter((l) => l.trim()).every((l) => /^~\s/.test(l));
+    barisTerpilih((l) => (!l.trim() ? l : semua ? l.replace(/^~\s+/, '') : '~ ' + bersih(l)));
+  };
+  const btn = (label, title, fn, style) =>
+    h('button', { type: 'button', class: 'btn sm', title, style, onmousedown: (e) => e.preventDefault(), onclick: fn }, label);
+
+  ta.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      tebal();
+    }
+  });
+
+  const tools = [btn('B', 'Tebalkan / lepas tebal teks terpilih (Ctrl+B)', tebal, 'font-weight:800;min-width:30px')];
+  const lt = o.lineTools === false ? [] : Array.isArray(o.lineTools) ? o.lineTools : ['judul', 'biasa', 'poin'];
+  if (lt.includes('judul')) tools.push(btn('Judul', 'Baris menjadi judul tebal', () => barisTerpilih((l) => (l.trim() ? bersih(l) : l))));
+  if (lt.includes('biasa')) tools.push(btn('Biasa', 'Baris menjadi tulisan biasa, tanpa tebal otomatis (awalan "~ ")', biasa));
+  if (lt.includes('poin')) tools.push(btn('• Poin', 'Baris menjadi poin', () => barisTerpilih((l) => (l.trim() ? '- ' + bersih(l) : l))));
+  if (o.autoBold) {
+    tools.push(
+      h('label', { class: 'rtb-auto', title: 'Jika dimatikan, baris tanpa awalan (-, angka, ~) tampil sebagai paragraf biasa' },
+        h('input', { type: 'checkbox', checked: o.autoBold.get(), onchange: (e) => o.autoBold.set(e.target.checked) }),
+        'Baris biasa otomatis tebal')
+    );
+  }
+  const wrap = h('div', { class: 'rta' }, h('div', { class: 'rtb' }, tools), ta);
+  wrap.ta = ta;
+  return wrap;
+}
+
 function select(options, value, onChange) {
   const el = h('select', { onchange: (e) => onChange(e.target.value, e.target.selectedIndex) }, options.map((o) => h('option', { value: o.v }, o.t)));
   el.value = value;
@@ -155,7 +235,7 @@ function go(view, arg) {
   const main = $('#main');
   main.innerHTML = '';
   main.scrollTop = 0;
-  ({ home: viewHome, invoice: viewInvoice, penawaran: viewPenawaran, riwayat: viewRiwayat, pengaturan: viewPengaturan })[view](main, arg);
+  ({ home: viewHome, invoice: viewInvoice, penawaran: viewPenawaran, audit: viewAudit, riwayat: viewRiwayat, pengaturan: viewPengaturan })[view](main, arg);
 }
 
 /* ================================================================ BERANDA */
@@ -167,7 +247,8 @@ function viewHome(root) {
       h('p', { class: 'sub' }, 'Buat invoice dan penawaran dalam hitungan detik. Semua tersimpan otomatis di Riwayat.'),
       h('div', { class: 'hero' },
         h('button', { class: 'tile', onclick: () => go('invoice') }, h('div', { class: 'big' }, '＄'), h('h2', {}, 'Buat Invoice'), h('p', {}, 'Nomor otomatis, total & fee % dihitung sendiri, hasil PDF.')),
-        h('button', { class: 'tile', onclick: () => go('penawaran') }, h('div', { class: 'big' }, '✎'), h('h2', {}, 'Buat Penawaran'), h('p', {}, '4 template siap pakai, hasil PDF atau Word (.docx).'))
+        h('button', { class: 'tile', onclick: () => go('penawaran') }, h('div', { class: 'big' }, '✎'), h('h2', {}, 'Buat Penawaran'), h('p', {}, '4 template siap pakai, hasil PDF atau Word (.docx).')),
+        h('button', { class: 'tile', onclick: () => go('audit') }, h('div', { class: 'big' }, '⌕'), h('h2', {}, 'Audit Google Maps'), h('p', {}, 'Analisis profil bisnis otomatis: temuan, proyeksi ulasan, rekomendasi.'))
       ),
       h('div', { class: 'card' },
         h('h3', {}, 'Dokumen terakhir'),
@@ -550,19 +631,22 @@ function editorPenawaran(root, rec) {
   /* isi teks */
   const isi = h('div', { class: 'card' },
     h('h3', {}, 'Isi penawaran'),
-    field('Paragraf pembuka', area(p.intro, (v) => { p.intro = v; upd(); }, 3)),
+    field('Paragraf pembuka', richArea(p.intro, (v) => { p.intro = v; upd(); }, 3, { lineTools: false })),
     h('div', { style: 'height:10px' }),
     p.sections.map((sec) =>
-      h('details', { class: 'sec' }, h('summary', {}, sec.label), h('div', {}, area(sec.text, (v) => { sec.text = v; upd(); }, 10)))
+      h('details', { class: 'sec' }, h('summary', {}, sec.label),
+        h('div', {}, richArea(sec.text, (v) => { sec.text = v; upd(); }, 10, {
+          autoBold: { get: () => sec.autoBold !== false, set: (b) => { sec.autoBold = b; upd(); } },
+        })))
     ),
-    h('details', { class: 'sec' }, h('summary', {}, 'Paragraf penutup'), h('div', {}, area(p.penutup, (v) => { p.penutup = v; upd(); }, 5), h('p', { class: 'hint' }, 'Satu baris = satu paragraf.'))),
+    h('details', { class: 'sec' }, h('summary', {}, 'Paragraf penutup'), h('div', {}, richArea(p.penutup, (v) => { p.penutup = v; upd(); }, 5, { lineTools: false }), h('p', { class: 'hint' }, 'Satu baris = satu paragraf.'))),
     h('details', { class: 'sec' },
       h('summary', {}, 'ℹ️ Cara menulis isi'),
       h('div', { class: 'hint' },
-        h('p', {}, 'Baris biasa = judul tebal (mis. "Kebutuhan Kami:").'),
-        h('p', {}, 'Baris diawali "- " = poin (bullet).'),
-        h('p', {}, 'Baris diawali "1. " = judul bernomor tebal.'),
-        h('p', {}, 'Bungkus kata dengan ** ** agar tebal, mis. **Foto dan video:**.'),
+        h('p', {}, 'Baris tanpa awalan = judul tebal (mis. "Kebutuhan Kami:"). Matikan kotak "Baris biasa otomatis tebal" jika ingin tampil biasa.'),
+        h('p', {}, 'Baris diawali "~ " = paragraf biasa (tidak tebal), apa pun isinya. Tombol "Biasa" memasangnya otomatis.'),
+        h('p', {}, 'Baris diawali "- " = poin (bullet). Baris diawali "1. " = judul bernomor tebal.'),
+        h('p', {}, 'Tebalkan sebagian kata: blok teksnya lalu klik tombol B (atau Ctrl+B). Hasilnya berupa **kata**.'),
         h('p', {}, '{klien}, {platform}, {fee}, {kontrak} otomatis diganti sesuai isian di atas.')
       )
     )
@@ -619,21 +703,232 @@ function editorPenawaran(root, rec) {
   }
 }
 
+/* ============================================================ AUDIT MAPS */
+function viewAudit(root, rec) {
+  let a;
+  if (rec) {
+    a = clone(rec.data);
+    a.id = rec.id;
+    a.status = rec.status;
+  } else {
+    a = Object.assign(clone(S.auditTpl), { id: String(Date.now()), tanggal: hariIni() });
+  }
+  a.cek = a.cek || { namaKata: 'auto' };
+  a.manual = a.manual || {};
+  S.audit = a;
+
+  const preview = createPreview(() => api.previewAudit(a));
+  const upd = () => preview.update();
+
+  const BLOK = [
+    { k: 'temuan', judul: '1. Temuan utama', rows: 11, tools: ['biasa'], hint: 'Satu baris = satu poin. Awali dengan **Judul:** agar judulnya tebal.' },
+    { k: 'proyeksiIntro', judul: '2a. Pengantar proyeksi ulasan', rows: 3, tools: false },
+    { k: 'proyeksi', judul: '2b. Tabel proyeksi ulasan', rows: 6, tools: false, hint: 'Satu baris = satu baris tabel: Tahap | Target | Kecepatan | Fokus. Tanda // = baris baru dalam sel.' },
+    { k: 'rekomendasi', judul: '3. Rekomendasi prioritas', rows: 12, tools: ['biasa'], hint: 'Satu baris = satu poin (nomor otomatis). Format: **Judul** — isi.' },
+    { k: 'catatan', judul: 'Catatan standar kepatuhan', rows: 3, tools: false },
+  ];
+  const refs = {};
+  const badges = {};
+
+  const paintBadge = (k) => {
+    const man = !!a.manual[k];
+    badges[k].replaceChildren(
+      h('span', { class: 'bdg' + (man ? ' man' : '') }, man ? 'Diedit manual' : 'Otomatis'),
+      man ? h('button', { class: 'lnk', type: 'button', onclick: () => regen(true, k) }, 'Buat ulang otomatis') : null
+    );
+  };
+
+  /* hitung ulang teks otomatis; blok yang sudah diedit manual tidak ditimpa kecuali dipaksa */
+  let seq = 0;
+  async function regen(paksa, hanya) {
+    const n = ++seq;
+    const hasil = await api.auditSusun(clone(a));
+    if (n !== seq) return;
+    BLOK.forEach(({ k }) => {
+      if (hanya && hanya !== k) return;
+      if (paksa || !a.manual[k]) {
+        a[k] = hasil[k];
+        if (paksa) a.manual[k] = false;
+        refs[k].ta.value = a[k];
+      }
+      paintBadge(k);
+    });
+    upd();
+  }
+  const dataBerubah = debounce(() => { a.klien = a.nama; regen(false); }, 200);
+
+  /* ---- data bisnis ---- */
+  const dataBox = h('div', {});
+  const cekBox = h('div', {});
+  const hasilBox = h('div', { class: 'maps-res' });
+
+  function paintData() {
+    const f = (label, key, o = {}, hint) => field(label, text(a[key], (v) => { a[key] = v; dataBerubah(); }, o), hint);
+    dataBox.replaceChildren(
+      h('div', { class: 'grid g2' },
+        f('Nama bisnis', 'nama'),
+        f('Area target', 'area', { ph: 'mis. Pagedangan & Gading Serpong' }, 'Dipakai di kalimat analisis dan rekomendasi.'),
+        f('Rating', 'rating', { ph: '4,8' }),
+        f('Jumlah ulasan', 'ulasan', { type: 'number' })
+      ),
+      h('div', { style: 'height:12px' }),
+      f('Alamat terdaftar', 'alamat'),
+      h('div', { style: 'height:12px' }),
+      h('div', { class: 'grid g2' },
+        f('Kategori utama', 'kategoriUtama', { ph: 'mis. Tempat Pencucian Mobil' }),
+        f('Kategori sekunder (pisahkan koma)', 'kategoriLain', { ph: 'kosongkan jika hanya 1 kategori' }, 'Kategori sekunder tidak bisa dibaca otomatis dari Google; lihat di profil bisnis.')
+      ),
+      h('div', { style: 'height:12px' }),
+      f('Layanan bisnis (pisahkan koma)', 'layanan', { ph: 'mis. salon mobil, auto detailing, ceramic coating, PPF' }, 'Dipakai untuk saran kategori, kata kunci nama, dan fokus ulasan.')
+    );
+  }
+
+  function paintCek() {
+    const opsi = [{ v: 'ya', t: 'Sudah ada' }, { v: 'tidak', t: 'Belum ada' }, { v: '?', t: 'Belum dicek' }];
+    const baris = S.auditCek.map((it) =>
+      h('div', { class: 'cek-row' }, h('span', {}, it.ui),
+        select(opsi, (a.cek[it.k] === 'ya' || a.cek[it.k] === 'tidak') ? a.cek[it.k] : '?', (v) => { a.cek[it.k] = v; dataBerubah(); }))
+    );
+    baris.push(
+      h('div', { class: 'cek-row' }, h('span', {}, 'Nama profil memuat kata kunci layanan'),
+        select([{ v: 'auto', t: 'Otomatis (cek dari nama)' }, { v: 'ya', t: 'Sudah memuat' }, { v: 'tidak', t: 'Belum memuat' }],
+          a.cek.namaKata === 'ya' || a.cek.namaKata === 'tidak' ? a.cek.namaKata : 'auto', (v) => { a.cek.namaKata = v; dataBerubah(); }))
+    );
+    cekBox.replaceChildren(...baris);
+  }
+
+  const qInput = text('', () => {}, { ph: 'Tempel link Google Maps, atau ketik nama bisnis + kota' });
+  const btnCari = h('button', { class: 'btn pri', onclick: cari }, 'Ambil dari Google Maps');
+  qInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') cari(); });
+
+  async function cari() {
+    hasilBox.replaceChildren();
+    btnCari.disabled = true;
+    btnCari.textContent = 'Mencari…';
+    try {
+      const r = await api.mapsSearch(qInput.value);
+      if (r.error) return toast(r.error, { err: true });
+      if (!r.places.length) return toast('Bisnis tidak ditemukan. Coba tambahkan nama kota.', { err: true });
+      r.places.forEach((p) =>
+        hasilBox.append(
+          h('button', { type: 'button', onclick: () => pilih(p) },
+            h('b', {}, p.nama), h('small', {}, p.alamat),
+            h('small', {}, `${p.rating !== '' ? String(p.rating).replace('.', ',') + ' ★' : 'tanpa rating'} · ${p.ulasan} ulasan${p.kategoriUtama ? ' · ' + p.kategoriUtama : ''}`))
+        )
+      );
+    } finally {
+      btnCari.disabled = false;
+      btnCari.textContent = 'Ambil dari Google Maps';
+    }
+  }
+
+  function pilih(p) {
+    a.nama = p.nama;
+    a.klien = p.nama;
+    a.alamat = p.alamat;
+    a.rating = p.rating === '' ? '' : String(p.rating).replace('.', ',');
+    a.ulasan = p.ulasan;
+    a.kategoriUtama = p.kategoriUtama || a.kategoriUtama;
+    a.mapsUrl = p.url;
+    a.cek.website = p.website ? 'ya' : 'tidak';
+    a.cek.telepon = p.telepon ? 'ya' : 'tidak';
+    a.cek.jam = p.punyaJam ? 'ya' : 'tidak';
+    hasilBox.replaceChildren();
+    paintData();
+    paintCek();
+    regen(false);
+    toast('Data bisnis terisi dari Google Maps. Lengkapi kategori sekunder & pengecekan lainnya.');
+  }
+
+  const adaKey = !!(S.settings.mapsApiKey || '').trim();
+  const cariCard = h('div', { class: 'card' },
+    h('h3', {}, 'Data bisnis'),
+    h('div', { class: 'row' }, h('div', { style: 'flex:1;min-width:240px' }, qInput), btnCari),
+    adaKey ? null : h('p', { class: 'hint', style: 'margin:8px 0 0' }, 'API key Google belum diisi, jadi pengambilan otomatis belum aktif. ',
+      h('button', { class: 'lnk', type: 'button', style: 'background:none;border:0;color:var(--brown);text-decoration:underline;cursor:pointer;padding:0', onclick: () => go('pengaturan') }, 'Isi di Pengaturan'),
+      '. Anda tetap bisa mengisi data di bawah secara manual.'),
+    hasilBox,
+    h('div', { style: 'height:14px' }),
+    dataBox
+  );
+  const cekCard = h('div', { class: 'card' },
+    h('h3', {}, 'Pengecekan profil'),
+    h('p', { class: 'hint', style: 'margin:-4px 0 12px' }, 'Hal yang tidak bisa dibaca otomatis dari Google cukup dipilih di sini. "Belum dicek" akan tampil sebagai "perlu dipastikan" di laporan.'),
+    cekBox
+  );
+
+  /* ---- hasil audit (bisa diedit) ---- */
+  const hasilCard = h('div', { class: 'card' },
+    h('h3', {}, 'Hasil audit (bisa diedit)'),
+    check('Judul poin otomatis tebal (teks sebelum ":" atau "—")', a.autoBold !== false, (v) => { a.autoBold = v; upd(); }),
+    h('p', { class: 'hint', style: 'margin:2px 0 0' }, 'Teks diperbarui otomatis saat data di atas berubah. Setelah Anda mengedit sebuah bagian, bagian itu dikunci dan tidak ditimpa. Tombol B menebalkan teks terpilih; tombol Biasa membuat baris tampil tanpa tebal otomatis.'),
+    BLOK.map((b) => {
+      badges[b.k] = h('span', { class: 'row', style: 'gap:8px' });
+      refs[b.k] = richArea(a[b.k], (v) => { a[b.k] = v; a.manual[b.k] = true; paintBadge(b.k); upd(); }, b.rows, { lineTools: b.tools });
+      paintBadge(b.k);
+      return h('div', {}, h('div', { class: 'blok-h' }, h('b', {}, b.judul), badges[b.k]), refs[b.k], b.hint ? h('p', { class: 'hint', style: 'margin:4px 0 0' }, b.hint) : null);
+    })
+  );
+
+  const btnPdf = h('button', { class: 'btn pri', onclick: exportPdf }, 'Simpan PDF');
+  const btnDraf = h('button', { class: 'btn', onclick: async () => { await simpan(); toast('Draf tersimpan di Riwayat'); } }, 'Simpan draf');
+  const btnUlang = h('button', { class: 'btn', title: 'Timpa semua teks hasil audit dengan versi otomatis', onclick: () => { if (confirm('Semua teks hasil audit akan ditimpa dengan versi otomatis, termasuk bagian yang sudah Anda edit. Lanjutkan?')) regen(true); } }, 'Buat ulang semua');
+
+  root.append(
+    h('div', { class: 'topbar' }, h('h1', {}, 'Audit Google Maps'), h('div', { class: 'sp' }), btnUlang, btnDraf, btnPdf),
+    h('div', { class: 'editor' },
+      h('div', {}, cariCard, cekCard, hasilCard),
+      h('div', { class: 'preview', style: 'max-height:calc(100vh - 96px);overflow:auto' }, preview.el,
+        h('p', { class: 'pv-note' }, 'Pratinjau berupa satu lembar panjang. Pembagian halaman final ada pada file PDF.'))
+    )
+  );
+  paintData();
+  paintCek();
+  if (rec) { BLOK.forEach(({ k }) => paintBadge(k)); upd(); } else regen(false);
+
+  async function simpan() {
+    a.klien = a.nama;
+    const r = await api.saveHistory({
+      id: a.id, jenis: 'audit', judul: `Audit ${a.nama || ''}`.trim(), templateNama: 'Audit Google Maps',
+      klien: a.nama, tanggal: a.tanggal, status: a.status || 'Draf', data: clone(a),
+    });
+    S.history = r.history;
+  }
+  async function exportPdf() {
+    if (!String(a.nama || '').trim()) return toast('Isi nama bisnis terlebih dahulu.', { err: true });
+    btnPdf.disabled = true;
+    btnPdf.textContent = 'Memproses…';
+    try {
+      const res = await api.exportPdf({ kind: 'audit', data: clone(a), fileName: `Audit Google Maps - ${a.nama}` });
+      if (!res.canceled) {
+        await simpan();
+        toast('PDF tersimpan', { action: { label: 'Tampilkan', fn: () => api.reveal(res.path) } });
+      }
+    } catch (e) {
+      toast('Gagal menyimpan: ' + e.message, { err: true });
+    } finally {
+      btnPdf.disabled = false;
+      btnPdf.textContent = 'Simpan PDF';
+    }
+  }
+}
+
 /* ================================================================ RIWAYAT */
 function historyTable(list, ringkas) {
-  const STAT = { invoice: ['Belum dibayar', 'Lunas'], penawaran: ['Draf', 'Terkirim', 'Deal', 'Batal'] };
+  const STAT = { invoice: ['Belum dibayar', 'Lunas'], penawaran: ['Draf', 'Terkirim', 'Deal', 'Batal'], audit: ['Draf', 'Terkirim', 'Selesai'] };
+  const TAGS = { invoice: ['inv', 'Invoice'], penawaran: ['pen', 'Penawaran'], audit: ['aud', 'Audit Maps'] };
   return h('table', { class: 'hist' },
     h('thead', {}, h('tr', {}, h('th', {}, 'Jenis'), h('th', {}, 'Dokumen'), h('th', {}, 'Klien'), h('th', {}, 'Tanggal'), h('th', {}, 'Total'), h('th', {}, 'Status'), h('th', {}))),
     h('tbody', {}, list.map((r) =>
       h('tr', {},
-        h('td', {}, h('span', { class: 'tag ' + (r.jenis === 'invoice' ? 'inv' : 'pen') }, r.jenis === 'invoice' ? 'Invoice' : 'Penawaran')),
+        h('td', {}, h('span', { class: 'tag ' + TAGS[r.jenis][0] }, TAGS[r.jenis][1])),
         h('td', {}, r.jenis === 'invoice' ? r.nomor : [h('div', {}, r.templateNama || 'Penawaran'), h('small', { class: 'hint' }, r.judul)]),
         h('td', {}, r.klien),
         h('td', {}, tglID(r.tanggal)),
         h('td', { style: 'font-variant-numeric:tabular-nums' }, r.total ? rupiah(r.total) : '—'),
         h('td', {}, select(STAT[r.jenis].map((x) => ({ v: x, t: x })), STAT[r.jenis].includes(r.status) ? r.status : STAT[r.jenis][0], async (v) => { S.history = await api.setStatus({ id: r.id, status: v }); })),
         h('td', { style: 'white-space:nowrap;text-align:right' },
-          h('button', { class: 'btn sm', onclick: () => go(r.jenis === 'invoice' ? 'invoice' : 'penawaran', r) }, 'Buka / Edit'), ' ',
+          h('button', { class: 'btn sm', onclick: () => go(r.jenis, r) }, 'Buka / Edit'), ' ',
           ringkas ? null : h('button', { class: 'btn sm', title: 'Buat salinan baru dari dokumen ini', onclick: () => duplikat(r) }, 'Duplikat'), ' ',
           ringkas ? null : h('button', { class: 'btn sm dan', onclick: async () => { if (confirm('Hapus dokumen ini dari riwayat?')) { S.history = await api.deleteHistory(r.id); go('riwayat'); } } }, 'Hapus')
         )
@@ -653,7 +948,7 @@ function duplikat(r) {
     copy.data._baru = true;
   }
   S.penTplPick = copy.data.templateId || null;
-  go(r.jenis === 'invoice' ? 'invoice' : 'penawaran', copy);
+  go(r.jenis, copy);
 }
 
 function viewRiwayat(root) {
@@ -662,7 +957,7 @@ function viewRiwayat(root) {
   const box = h('div', {});
   const chips = h('div', { class: 'row' });
   const paint = () => {
-    chips.replaceChildren(...[['semua', 'Semua'], ['invoice', 'Invoice'], ['penawaran', 'Penawaran']].map(([k, l]) => h('button', { class: 'btn sm' + (filter === k ? ' pri' : ''), onclick: () => { filter = k; paint(); } }, l)));
+    chips.replaceChildren(...[['semua', 'Semua'], ['invoice', 'Invoice'], ['penawaran', 'Penawaran'], ['audit', 'Audit Maps']].map(([k, l]) => h('button', { class: 'btn sm' + (filter === k ? ' pri' : ''), onclick: () => { filter = k; paint(); } }, l)));
     const list = S.history.filter((r) => (filter === 'semua' || r.jenis === filter) && (!q || (r.klien + ' ' + (r.nomor || '') + ' ' + (r.judul || '')).toLowerCase().includes(q.toLowerCase())));
     box.replaceChildren(list.length ? historyTable(list) : h('div', { class: 'empty' }, 'Tidak ada dokumen.'));
   };
@@ -727,6 +1022,10 @@ function viewPengaturan(root) {
           field('Alamat di footer invoice', text(s.invoice.footerAlamat, (v) => (s.invoice.footerAlamat = v)))
         )
       ),
+      h('div', { class: 'card' }, h('h3', {}, 'Google Maps (untuk Audit Maps)'),
+        field('Google Places API key', text(s.mapsApiKey || '', (v) => (s.mapsApiKey = v.trim()), { type: 'password', ph: 'AIza…' }),
+          'Dipakai untuk mengambil nama, alamat, rating, jumlah ulasan, kategori, website, dan telepon dari Google Maps. Tanpa key, data bisnis tetap bisa diisi manual. Key disimpan di komputer ini.')
+      ),
       h('div', { class: 'card' }, h('h3', {}, 'Penandatangan penawaran'),
         field('Satu per baris, format: Nama | Jabatan', ttd)
       ),
@@ -751,7 +1050,7 @@ document.querySelectorAll('#sidebar nav button').forEach((b) =>
 
 (async function boot() {
   const init = await api.init();
-  Object.assign(S, { settings: init.settings, templates: init.templates, history: init.history, platform: init.platform });
+  Object.assign(S, { settings: init.settings, templates: init.templates, history: init.history, platform: init.platform, auditTpl: init.auditTpl, auditCek: init.auditCek });
   $('#sbFoot').textContent = `Versi ${init.version}`;
   go('home');
 })();
