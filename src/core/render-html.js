@@ -174,6 +174,8 @@ function blokHtml(blocks) {
       out += `<li>${richHtml(b.text)}</li>`;
     } else if (b.type === 'numhead') {
       out += `<p class="nh"><span>${esc(b.num)}.</span><b>${richHtml(b.text)}</b></p>`;
+    } else if (b.type === 'para') {
+      out += `<p class="pg">${richHtml(b.text)}</p>`;
     } else {
       out += `<p class="hd"><b>${richHtml(b.text)}</b></p>`;
     }
@@ -221,6 +223,7 @@ table.price tr{break-inside:avoid}
 table.price tr.tot td{font-weight:700}
 table.price tr.notes td{text-align:left;font-size:10.5pt;line-height:1.25}
 .hd{margin:6mm 0 1.5mm;break-after:avoid}
+.pg{margin:0 0 1.5mm;text-align:justify}
 .nh{display:flex;gap:2.5mm;margin:3.5mm 0 1mm;break-after:avoid;padding-left:3mm}
 ul{margin:0 0 1mm;padding-left:10mm}
 li{text-align:justify;margin:0 0 1.2mm}
@@ -254,4 +257,4 @@ li{text-align:justify;margin:0 0 1.2mm}
 </body></html>`;
 }
 
-module.exports = { invoiceHtml, penawaranHtml };
+module.exports = { invoiceHtml, penawaranHtml, fontFaces, richHtml };
