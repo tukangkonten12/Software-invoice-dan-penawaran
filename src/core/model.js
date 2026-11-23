@@ -40,7 +40,7 @@ function bangunPenawaran(d, s) {
       };
     });
 
-  const sections = (d.sections || []).map((sec) => F.parseBody(sec.text, vars));
+  const sections = (d.sections || []).map((sec) => F.parseBody(sec.text, vars, { autoBold: sec.autoBold !== false }));
   const penutup = v(d.penutup).split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
   const bank = s.bank || {};
 
