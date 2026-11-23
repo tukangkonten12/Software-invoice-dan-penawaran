@@ -70,6 +70,9 @@ function blok(blocks) {
     if (b.type === 'bullet') {
       return new D.Paragraph({ numbering: { reference: 'bullets', level: 0 }, alignment: D.AlignmentType.JUSTIFIED, spacing: { after: 40 }, children: rich(b.text) });
     }
+    if (b.type === 'para') {
+      return new D.Paragraph({ alignment: D.AlignmentType.JUSTIFIED, spacing: { after: 60 }, children: rich(b.text) });
+    }
     if (b.type === 'numhead') {
       return new D.Paragraph({
         keepNext: true,
