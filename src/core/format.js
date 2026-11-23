@@ -125,7 +125,16 @@ function runs(text) {
  *   "- teks"     -> {type:'bullet'}
  *   baris lain   -> {type:'head'}     (judul tebal, mis. "Kebutuhan Kami:")
  */
-function parseBody(text, vars) {
+/**
+ * Mengubah teks isi menjadi blok. Aturan baris:
+ *   "~ teks"    -> paragraf BIASA (tidak tebal), menimpa semua aturan lain
+ *   "- teks"    -> poin (bullet)
+ *   "1. teks"   -> judul bernomor (tebal)
+ *   "teks"      -> judul tebal jika opts.autoBold (bawaan), paragraf biasa jika autoBold=false
+ * Di dalam baris, **kata** selalu menebalkan kata tersebut.
+ */
+function parseBody(text, vars, opts) {
+  const autoBold = !opts || opts.autoBold !== false;
   const blocks = [];
   String(text || '')
     .split(/\r?\n/)
@@ -134,9 +143,10 @@ function parseBody(text, vars) {
     .forEach((l) => {
       const line = isiVar(l, vars);
       let m;
-      if ((m = /^(\d+)\.\s+(.*)$/.exec(line))) blocks.push({ type: 'numhead', num: m[1], text: m[2] });
+      if ((m = /^~\s+(.*)$/.exec(line))) blocks.push({ type: 'para', text: m[1] });
+      else if ((m = /^(\d+)\.\s+(.*)$/.exec(line))) blocks.push({ type: 'numhead', num: m[1], text: m[2] });
       else if ((m = /^[-•]\s+(.*)$/.exec(line))) blocks.push({ type: 'bullet', text: m[1] });
-      else blocks.push({ type: 'head', text: line });
+      else blocks.push({ type: autoBold ? 'head' : 'para', text: line });
     });
   return blocks;
 }
