@@ -8,6 +8,8 @@ const { pathToFileURL } = require('url');
 const { DEFAULT_SETTINGS, TEMPLATES } = require('./src/core/templates');
 const { invoiceHtml, penawaranHtml } = require('./src/core/render-html');
 const { bangunPenawaran } = require('./src/core/model');
+const { auditHtml } = require('./src/core/render-audit');
+const Audit = require('./src/core/audit');
 const { buatDocx } = require('./src/core/render-docx');
 const F = require('./src/core/format');
 
@@ -122,7 +124,11 @@ ipcMain.handle('app:init', () => ({
   platform: process.platform,
   assetsUrl,
   version: app.getVersion(),
+  auditTpl: Audit.auditBaru(),
+  auditCek: Audit.CEK_ITEMS,
 }));
+
+ipcMain.handle('audit:susun', (e, data) => Audit.susunAudit(data));
 
 ipcMain.handle('settings:save', (e, s) => {
   writeJson(settingsFile(), s);
@@ -130,6 +136,15 @@ ipcMain.handle('settings:save', (e, s) => {
 });
 
 ipcMain.handle('preview:invoice', (e, data) => invoiceHtml(data, getSettings(), assetsUrl));
+
+ipcMain.handle('preview:audit', (e, data) => {
+  let html = auditHtml(data, getSettings(), assetsUrl);
+  // tampilan layar: satu lembar panjang berlatar abu-abu
+  return html.replace(
+    '</style>',
+    '@media screen{html{background:#e4e0d8}body{width:210mm;margin:8mm auto;padding:14mm 17mm 16mm;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.18)}}</style>'
+  );
+});
 
 ipcMain.handle('preview:penawaran', (e, data) => {
   let html = penawaranHtml(penawaranModel(data), assetsUrl, data.portofolio ? portfolioFiles() : []);
@@ -147,6 +162,8 @@ ipcMain.handle('export:pdf', async (e, { kind, data, fileName }) => {
   const html =
     kind === 'invoice'
       ? invoiceHtml(data, getSettings(), assetsUrl)
+      : kind === 'audit'
+      ? auditHtml(data, getSettings(), assetsUrl)
       : penawaranHtml(penawaranModel(data), assetsUrl, data.portofolio ? portfolioFiles() : []);
   const pdf = await htmlToPdf(html);
   fs.writeFileSync(target, pdf);
@@ -199,3 +216,63 @@ ipcMain.handle('history:status', (e, { id, status }) => {
 });
 
 ipcMain.handle('data:folder', () => shell.openPath(dataDir()));
+
+/* ------------------------------------------------- Google Maps (Places API) */
+const PLACES_FIELDS = [
+  'id', 'displayName', 'formattedAddress', 'rating', 'userRatingCount', 'primaryTypeDisplayName',
+  'types', 'websiteUri', 'nationalPhoneNumber', 'regularOpeningHours', 'googleMapsUri', 'businessStatus',
+].map((f) => 'places.' + f).join(',');
+
+/** Tautan Google Maps (termasuk tautan pendek) -> teks pencarian; teks biasa dikembalikan apa adanya. */
+async function mapsQueryDariInput(input) {
+  const q = String(input || '').trim();
+  if (!/^https?:\/\//i.test(q)) return q;
+  let url = q;
+  try {
+    const r = await fetch(q, { redirect: 'follow' });
+    url = r.url || q;
+  } catch (e) {
+    /* abaikan: pakai tautan asli */
+  }
+  let m = /\/maps\/place\/([^/@?]+)/.exec(url);
+  if (!m) m = /[?&]q=([^&]+)/.exec(url);
+  if (m) {
+    try {
+      return decodeURIComponent(m[1].replace(/\+/g, ' '));
+    } catch (e) {
+      return m[1].replace(/\+/g, ' ');
+    }
+  }
+  return q;
+}
+
+ipcMain.handle('maps:search', async (e, input) => {
+  const key = String(getSettings().mapsApiKey || '').trim();
+  if (!key) return { error: 'API key Google Maps belum diisi. Buka menu Pengaturan > Google Maps.' };
+  const query = await mapsQueryDariInput(input);
+  if (!query) return { error: 'Isi link Google Maps atau nama bisnis terlebih dahulu.' };
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': PLACES_FIELDS },
+      body: JSON.stringify({ textQuery: query, languageCode: 'id', regionCode: 'ID', pageSize: 5 }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: (j.error && j.error.message) || `Google menolak permintaan (HTTP ${res.status}).` };
+    const places = (j.places || []).map((p) => ({
+      nama: (p.displayName && p.displayName.text) || '',
+      alamat: p.formattedAddress || '',
+      rating: p.rating == null ? '' : p.rating,
+      ulasan: p.userRatingCount == null ? 0 : p.userRatingCount,
+      kategoriUtama: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '',
+      website: p.websiteUri || '',
+      telepon: p.nationalPhoneNumber || '',
+      punyaJam: !!p.regularOpeningHours,
+      url: p.googleMapsUri || '',
+      status: p.businessStatus || '',
+    }));
+    return { places, query };
+  } catch (err) {
+    return { error: 'Tidak bisa menghubungi Google. Periksa koneksi internet. (' + err.message + ')' };
+  }
+});
