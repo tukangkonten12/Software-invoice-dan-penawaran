@@ -99,3 +99,24 @@ table.hist tr:hover td{background:#fffaf0}
 #toast button{margin-left:10px}
 
 @media(max-width:1250px){.editor{grid-template-columns:1fr}.preview{position:static}}
+
+/* ---- toolbar pemformatan teks ---- */
+.rta .rtb{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.rta .rtb .btn.sm{padding:3px 9px}
+.rta .rtb-auto{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:12.5px;font-weight:500;color:var(--ink);cursor:pointer}
+.rta .rtb-auto input{width:auto}
+
+/* ---- audit google maps ---- */
+.hero{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.tag.aud{background:#e9f7ee;color:#1d7a46}
+.maps-res{display:grid;gap:8px;margin-top:10px}
+.maps-res button{text-align:left;border:1px solid var(--line);background:#fffdfa;border-radius:8px;padding:8px 10px;cursor:pointer}
+.maps-res button:hover{border-color:var(--amber);background:#fff7e8}
+.maps-res small{display:block;color:var(--muted)}
+.cek-row{display:grid;grid-template-columns:1fr 170px;gap:10px;align-items:center;margin-bottom:8px}
+.cek-row span{font-size:13.5px}
+.blok-h{display:flex;align-items:center;gap:10px;margin:14px 0 6px}
+.blok-h b{font-size:13.5px}
+.blok-h .bdg{font-size:11.5px;border-radius:20px;padding:2px 9px;background:#e9f7ee;color:#1d7a46;font-weight:600}
+.blok-h .bdg.man{background:#fff1d6;color:#8a5a00}
+.blok-h .lnk{background:none;border:0;color:var(--brown);cursor:pointer;text-decoration:underline;font-size:12px;padding:0}
