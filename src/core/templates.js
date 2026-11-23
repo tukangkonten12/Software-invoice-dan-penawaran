@@ -4,6 +4,7 @@
 
 const DEFAULT_SETTINGS = {
   perusahaan: 'PT. Memudahkan Hidup Kamu',
+  mapsApiKey: '',
   alamat1: 'Jl. Soekarno Hatta No.12, Puri Asri, Kec. Pedurungan,',
   alamat2: 'Kota Semarang, Jawa Tengah 50246',
   website: 'MHK.co.id',
