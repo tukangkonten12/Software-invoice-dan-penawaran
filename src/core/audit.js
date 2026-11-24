@@ -10,6 +10,7 @@ const F = require('./format');
 
 /* Item pengecekan profil. Nilai: 'ya' (sudah ada), 'tidak' (belum ada), '?' (belum dicek). */
 const CEK_ITEMS = [
+  { k: 'verifikasi', label: 'Verifikasi akun Google Bisnis', ui: 'Akun Google Bisnis terverifikasi (Verified)' },
   { k: 'website', label: 'Situs Web (atau tautan WhatsApp reservasi)', ui: 'Situs web / link reservasi' },
   { k: 'telepon', label: 'Nomor Telepon', ui: 'Nomor telepon' },
   { k: 'jam', label: 'Jam Operasional', ui: 'Jam operasional' },
@@ -117,6 +118,7 @@ function auditBaru(s) {
     mapsUrl: '',
     cek: { namaKata: 'auto' },
     autoBold: true,
+    sertakanUlasan: true, // false = bagian "Evaluasi & Proyeksi Kebutuhan Ulasan" tidak dimuat
     manual: {}, // blok teks yang sudah diedit manual (tidak ditimpa saat data berubah)
     temuan: '',
     proyeksiIntro: '',
@@ -140,7 +142,13 @@ function susunAudit(a) {
   const P = hitungProyeksi(u);
   const bintang = r == null ? 'rating saat ini' : r >= 4.95 ? `rating sudah sempurna di angka ${rs}` : `rating ${rs}`;
 
+  const ul = a.sertakanUlasan !== false;
   const temuan = [];
+
+  /* 0. verifikasi akun */
+  if (statusCek(a, 'verifikasi') === 'tidak') {
+    temuan.push(`**Akun Google Bisnis Belum Terverifikasi:** Profil '${nama}' belum diklaim dan diverifikasi oleh pemilik, sehingga belum bisa dikelola penuh (membalas ulasan, mengunggah Google Posts, dan memperbarui informasi bisnis) dan lebih rentan terhadap perubahan data oleh pihak lain. Lakukan klaim dan verifikasi melalui business.google.com.`);
+  }
 
   /* 1. kategori */
   if (nCat === 1) {
@@ -153,7 +161,7 @@ function susunAudit(a) {
   }
 
   /* 2. ulasan */
-  if (u > 0 || a.ulasan !== '') {
+  if (ul && (u > 0 || a.ulasan !== '')) {
     if (u < 20) {
       temuan.push(`**Jumlah Ulasan Masih Sangat Minim:** ${r != null && r >= 4.7 ? 'Meskipun ' + bintang + ',' : 'Dengan ' + bintang + ','} total ulasan baru mencapai ${u} ulasan. Untuk bersaing di ${area}, angka ${u} ulasan masih terlalu rendah untuk mendongkrak peringkat pencarian lokal maupun membangun kepercayaan maksimal bagi calon pelanggan baru.`);
     } else if (u < 50) {
@@ -164,9 +172,9 @@ function susunAudit(a) {
   }
 
   /* 3. rating */
-  if (r != null && r < 4.0) {
+  if (ul && r != null && r < 4.0) {
     temuan.push(`**Rating Perlu Ditingkatkan:** Rating ${rs} masih di bawah harapan calon pelanggan (umumnya minimal 4,5). Tanggapi ulasan rendah secara profesional, perbaiki keluhan yang berulang, dan ajak pelanggan yang puas untuk memberi ulasan.`);
-  } else if (r != null && r < 4.5) {
+  } else if (ul && r != null && r < 4.5) {
     temuan.push(`**Rating Belum Optimal:** Rating ${rs} sudah cukup, namun masih bisa dinaikkan. Balas setiap ulasan, tangani keluhan yang muncul, dan perbanyak ulasan positif dari pelanggan yang puas.`);
   }
 
@@ -186,6 +194,7 @@ function susunAudit(a) {
   const tidak = [];
   const tanya = [];
   CEK_ITEMS.forEach((it) => {
+    if (it.k === 'verifikasi') return; // dibahas terpisah di atas
     if (it.k === 'fasad') {
       if (fasad === '?') tanya.push(it.label);
       return;
@@ -224,6 +233,9 @@ function susunAudit(a) {
   /* ----- rekomendasi ----- */
   const saran = saranKategori(utama);
   const rek = [];
+  if (statusCek(a, 'verifikasi') === 'tidak') {
+    rek.push('**Klaim & Verifikasi Akun Google Bisnis** — Klaim profil melalui business.google.com lalu selesaikan verifikasi sesuai metode yang ditawarkan Google (misalnya telepon, email, atau video), agar profil dapat dikelola penuh dan terlindungi dari perubahan pihak lain.');
+  }
   if (nCat <= 2) {
     rek.push(`**Penambahan Kategori Sekunder & Daftar Layanan (Services)** — Pertahankan '${utama || 'kategori utama'}' sebagai kategori utama, lalu tambahkan kategori sekunder sesuai dengan kompetitor${saran.length ? ` (misalnya ${gabungAtau(saran)})` : ''}. Lengkapi menu Layanan (Services) dengan paket detail yang dimiliki agar tampil di Google Maps.`);
   } else {
@@ -235,15 +247,15 @@ function susunAudit(a) {
     rek.push('**Pengisian Situs Web & Profil Sosial Media** — Tautkan website resmi atau link reservasi WhatsApp pada kolom Situs Web, serta hubungkan akun Instagram dan TikTok resmi untuk menampilkan portofolio hasil pengerjaan.');
   }
   rek.push(`**Pembaruan Galeri Foto** — Unggah foto tampak depan yang memperlihatkan plang nama/logo ${nama === 'bisnis ini' ? 'bisnis' : nama} dengan jelas, ditambah foto proses layanan, suasana tempat, dan hasil akhir.`);
-  rek.push(`**Peningkatan Ulasan Bertahap & Respon Ulasan** — Jalankan penambahan ulasan secara alami sebanyak ${P.vLo}–${P.vHi} ulasan per bulan hingga menembus ${P.lo2}+ ulasan, serta pastikan setiap ulasan yang masuk dibalas dengan bahasa ramah.`);
-  if (r != null && r < 4.5) {
+  if (ul) rek.push(`**Peningkatan Ulasan Bertahap & Respon Ulasan** — Jalankan penambahan ulasan secara alami sebanyak ${P.vLo}–${P.vHi} ulasan per bulan hingga menembus ${P.lo2}+ ulasan, serta pastikan setiap ulasan yang masuk dibalas dengan bahasa ramah.`);
+  if (ul && r != null && r < 4.5) {
     rek.push('**Perbaikan Rating** — Tinjau keluhan yang berulang pada ulasan rendah, balas secara profesional, dan minta pelanggan yang puas memberi ulasan agar rating naik ke 4,5 ke atas.');
   }
   rek.push(`**Publikasi Google Posts & Deskripsi Teroptimasi** — Isi deskripsi bisnis (maks. 750 karakter) dengan kata kunci relevan area ${area}, serta rutin unggah Google Posts berisi informasi dan promo bisnis ini.`);
 
   const catatan = `Seluruh rekomendasi di atas disusun mengacu pada pedoman resmi Google Business Profile guna meningkatkan visibilitas pencarian lokal di ${area} secara aman dan berkelanjutan.`;
 
-  return { temuan: temuan.join('\n'), proyeksiIntro, proyeksi, rekomendasi: rek.join('\n'), catatan };
+  return { temuan: temuan.join('\n'), proyeksiIntro: ul ? proyeksiIntro : '', proyeksi: ul ? proyeksi : '', rekomendasi: rek.join('\n'), catatan };
 }
 
 /** Isi blok teks yang belum diedit manual dengan hasil audit otomatis. */
@@ -291,10 +303,13 @@ function bangunAudit(a, s) {
     ['Performa Rating & Ulasan', r == null && !u ? '-' : `${r == null ? '-' : ratingStr(r)} Bintang (${u} Ulasan)`, false],
     ['Kategori Terdeteksi', kategoriTeks, kategoriWarn],
   ];
+  const ver = statusCek(a, 'verifikasi');
+  if (ver !== '?') info.push(['Status Akun Google Bisnis', ver === 'ya' ? 'Terverifikasi (Verified)' : 'Belum Terverifikasi (Perlu Diverifikasi)', ver === 'tidak']);
 
   return {
     kop: { perusahaan: s.perusahaan || '', alamat1: s.alamat1 || '', alamat2: s.alamat2 || '', telepon: (s.telepon || [])[0] || '', website: s.website || '' },
     nama: a.nama || 'Nama Bisnis',
+    ulasan: a.sertakanUlasan !== false,
     info,
     temuan: baris(a.temuan).map((l) => barisRich(l, autoBold, /^([^:*\n]{3,80}):\s+(.+)$/, (m) => `**${m[1]}:** ${m[2]}`)),
     proyeksiIntro: String(a.proyeksiIntro || '').trim(),
