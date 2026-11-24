@@ -71,11 +71,11 @@ ol.rk .no{font-weight:700;color:#2563EB;min-width:5mm}
 <h2>1. Analisis Kekurangan &amp; Temuan Utama Profil</h2>
 <ul class="tm">${temuan}</ul>
 
-<h2>2. Evaluasi &amp; Proyeksi Kebutuhan Ulasan (Review)</h2>
+${m.ulasan ? `<h2>2. Evaluasi &amp; Proyeksi Kebutuhan Ulasan (Review)</h2>
 ${m.proyeksiIntro ? `<p class="intro">${richHtml(m.proyeksiIntro)}</p>` : ''}
-${proyeksi}
+${proyeksi}` : ''}
 
-<h2>3. Rekomendasi Langkah Perbaikan Prioritas</h2>
+<h2>${m.ulasan ? 3 : 2}. Rekomendasi Langkah Perbaikan Prioritas</h2>
 <ol class="rk">${rek}</ol>
 ${m.catatan ? `<div class="cat"><b>Catatan Standar Kepatuhan:</b> ${richHtml(m.catatan)}</div>` : ''}
 </body></html>`;
