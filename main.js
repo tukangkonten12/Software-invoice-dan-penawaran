@@ -300,14 +300,64 @@ async function cariOutscraper(key, query, limit) {
   }
 }
 
+/* ---------------------------------------------------------------- SerpApi */
+function petaSerpApi(o) {
+  const semua = Array.isArray(o.types) ? o.types : Array.isArray(o.type) ? o.type : o.type ? [o.type] : [];
+  const utama = String(semua[0] || '').trim();
+  const lain = semua.slice(1).map((x) => String(x).trim()).filter((x) => x && x.toLowerCase() !== utama.toLowerCase());
+  const jam = o.operating_hours || o.hours;
+  return {
+    sumber: 'serpapi',
+    nama: o.title || '',
+    alamat: o.address || '',
+    rating: o.rating == null ? '' : o.rating,
+    ulasan: o.reviews == null ? 0 : o.reviews,
+    kategoriUtama: utama,
+    kategoriLain: lain.join(', '),
+    website: o.website || '',
+    telepon: o.phone || '',
+    punyaJam: Array.isArray(jam) ? jam.length > 0 : jam && typeof jam === 'object' ? Object.keys(jam).length > 0 : !!jam,
+    deskripsi: !!(o.description && String(o.description).trim()),
+    posts: false,
+    url: o.place_id ? 'https://www.google.com/maps/place/?q=place_id:' + o.place_id : '',
+    status: o.unclaimed_listing ? 'UNCLAIMED' : '',
+  };
+}
+
+async function cariSerpApi(key, query) {
+  const u = new URL('https://serpapi.com/search.json');
+  u.searchParams.set('engine', 'google_maps');
+  u.searchParams.set('type', 'search');
+  u.searchParams.set('q', query);
+  u.searchParams.set('hl', 'id');
+  u.searchParams.set('gl', 'id');
+  u.searchParams.set('api_key', key);
+  try {
+    const res = await fetch(u);
+    const j = await res.json().catch(() => ({}));
+    if (j.error) {
+      if (/hasn't returned any results|no results/i.test(String(j.error))) return { places: [], query };
+      return { error: 'SerpApi: ' + j.error };
+    }
+    if (!res.ok) return { error: `SerpApi menolak permintaan (HTTP ${res.status}). Periksa API key.` };
+    // satu hasil pasti bisa dikembalikan sebagai place_results, banyak hasil sebagai local_results
+    const rows = Array.isArray(j.local_results) ? j.local_results : j.place_results ? [j.place_results] : [];
+    return { places: rows.filter((o) => o && o.title).slice(0, 5).map(petaSerpApi), query };
+  } catch (err) {
+    return { error: 'Tidak bisa menghubungi SerpApi. Periksa koneksi internet. (' + err.message + ')' };
+  }
+}
+
 ipcMain.handle('maps:search', async (e, input) => {
   const st = getSettings();
+  const skey = String(st.serpApiKey || '').trim();
   const okey = String(st.outscraperKey || '').trim();
   const key = String(st.mapsApiKey || '').trim();
-  if (!okey && !key) return { error: 'API key belum diisi. Buka menu Pengaturan > Google Maps.' };
+  if (!skey && !okey && !key) return { error: 'API key belum diisi. Buka menu Pengaturan > Google Maps.' };
   const query = await mapsQueryDariInput(input);
   if (!query) return { error: 'Isi link Google Maps atau nama bisnis terlebih dahulu.' };
-  // Outscraper dipakai bila key-nya diisi; jika tidak, Google Places API.
+  // Urutan pemakaian: SerpApi, lalu Outscraper, lalu Google Places API (sesuai key yang diisi).
+  if (skey) return cariSerpApi(skey, query);
   if (okey) return cariOutscraper(okey, query, /^https?:\/\//i.test(String(input).trim()) ? 1 : 3);
   try {
     const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
