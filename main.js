@@ -246,11 +246,69 @@ async function mapsQueryDariInput(input) {
   return q;
 }
 
+/* ------------------------------------------------------------- Outscraper */
+const OUTSCRAPER = 'https://api.app.outscraper.com';
+const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function petaOutscraper(o) {
+  const tipe = String(o.type || o.category || '').trim();
+  const subs = (Array.isArray(o.subtypes) ? o.subtypes.join(',') : String(o.subtypes || ''))
+    .split(',').map((x) => x.trim()).filter(Boolean);
+  const utama = tipe || subs[0] || '';
+  const lain = subs.filter((x) => x.toLowerCase() !== utama.toLowerCase());
+  return {
+    sumber: 'outscraper',
+    nama: o.name || '',
+    alamat: o.address || '',
+    rating: o.rating == null ? '' : o.rating,
+    ulasan: o.reviews == null ? 0 : o.reviews,
+    kategoriUtama: utama,
+    kategoriLain: lain.join(', '),
+    website: o.website || '',
+    telepon: o.phone || '',
+    punyaJam: !!(o.working_hours && Object.keys(o.working_hours).length),
+    deskripsi: !!(o.description && String(o.description).trim()),
+    posts: Array.isArray(o.posts) && o.posts.length > 0,
+    url: o.location_link || '',
+    status: o.business_status || '',
+  };
+}
+
+async function cariOutscraper(key, query, limit) {
+  const headers = { 'X-API-KEY': key };
+  const u = new URL(OUTSCRAPER + '/maps/search-v3');
+  u.searchParams.set('query', query);
+  u.searchParams.set('limit', String(limit));
+  u.searchParams.set('language', 'id');
+  u.searchParams.set('region', 'ID');
+  u.searchParams.set('async', 'false');
+  try {
+    let res = await fetch(u, { headers });
+    let j = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: j.errorMessage || j.error || `Outscraper menolak permintaan (HTTP ${res.status}). Periksa API key.` };
+    // jika proses belum selesai, tunggu sampai ± 60 detik
+    for (let i = 0; i < 20 && /^(pending|running)$/i.test(String(j.status || '')) && j.id; i++) {
+      await tidur(3000);
+      res = await fetch(`${OUTSCRAPER}/requests/${encodeURIComponent(j.id)}`, { headers });
+      j = await res.json().catch(() => ({}));
+    }
+    if (!/^success$/i.test(String(j.status || ''))) return { error: 'Outscraper belum selesai memproses. Coba lagi sebentar lagi.' };
+    const places = (j.data || []).flat().filter((o) => o && o.name).map(petaOutscraper);
+    return { places, query };
+  } catch (err) {
+    return { error: 'Tidak bisa menghubungi Outscraper. Periksa koneksi internet. (' + err.message + ')' };
+  }
+}
+
 ipcMain.handle('maps:search', async (e, input) => {
-  const key = String(getSettings().mapsApiKey || '').trim();
-  if (!key) return { error: 'API key Google Maps belum diisi. Buka menu Pengaturan > Google Maps.' };
+  const st = getSettings();
+  const okey = String(st.outscraperKey || '').trim();
+  const key = String(st.mapsApiKey || '').trim();
+  if (!okey && !key) return { error: 'API key belum diisi. Buka menu Pengaturan > Google Maps.' };
   const query = await mapsQueryDariInput(input);
   if (!query) return { error: 'Isi link Google Maps atau nama bisnis terlebih dahulu.' };
+  // Outscraper dipakai bila key-nya diisi; jika tidak, Google Places API.
+  if (okey) return cariOutscraper(okey, query, /^https?:\/\//i.test(String(input).trim()) ? 1 : 3);
   try {
     const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
