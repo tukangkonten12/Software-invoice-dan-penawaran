@@ -776,7 +776,7 @@ function viewAudit(root, rec) {
       h('div', { style: 'height:12px' }),
       h('div', { class: 'grid g2' },
         f('Kategori utama', 'kategoriUtama', { ph: 'mis. Tempat Pencucian Mobil' }),
-        f('Kategori sekunder (pisahkan koma)', 'kategoriLain', { ph: 'kosongkan jika hanya 1 kategori' }, 'Kategori sekunder tidak bisa dibaca otomatis dari Google; lihat di profil bisnis.')
+        f('Kategori sekunder (pisahkan koma)', 'kategoriLain', { ph: 'kosongkan jika hanya 1 kategori' }, 'Terisi otomatis jika memakai Outscraper; dengan Google Places isi manual dari profil bisnis.')
       ),
       h('div', { style: 'height:12px' }),
       f('Layanan bisnis (pisahkan koma)', 'layanan', { ph: 'mis. salon mobil, auto detailing, ceramic coating, PPF' }, 'Dipakai untuk saran kategori, kata kunci nama, dan fokus ulasan.')
@@ -829,6 +829,9 @@ function viewAudit(root, rec) {
     a.rating = p.rating === '' ? '' : String(p.rating).replace('.', ',');
     a.ulasan = p.ulasan;
     a.kategoriUtama = p.kategoriUtama || a.kategoriUtama;
+    if (p.sumber === 'outscraper') a.kategoriLain = p.kategoriLain || '';
+    if (p.deskripsi) a.cek.deskripsi = 'ya';
+    if (p.posts) a.cek.posts = 'ya';
     a.mapsUrl = p.url;
     a.cek.website = p.website ? 'ya' : 'tidak';
     a.cek.telepon = p.telepon ? 'ya' : 'tidak';
@@ -837,14 +840,14 @@ function viewAudit(root, rec) {
     paintData();
     paintCek();
     regen(false);
-    toast('Data bisnis terisi dari Google Maps. Lengkapi kategori sekunder & pengecekan lainnya.');
+    toast(p.sumber === 'outscraper' ? 'Data bisnis terisi dari Google Maps. Periksa pengecekan yang masih "Belum dicek".' : 'Data bisnis terisi dari Google Maps. Lengkapi kategori sekunder & pengecekan lainnya.');
   }
 
-  const adaKey = !!(S.settings.mapsApiKey || '').trim();
+  const adaKey = !!((S.settings.outscraperKey || '') + (S.settings.mapsApiKey || '')).trim();
   const cariCard = h('div', { class: 'card' },
     h('h3', {}, 'Data bisnis'),
     h('div', { class: 'row' }, h('div', { style: 'flex:1;min-width:240px' }, qInput), btnCari),
-    adaKey ? null : h('p', { class: 'hint', style: 'margin:8px 0 0' }, 'API key Google belum diisi, jadi pengambilan otomatis belum aktif. ',
+    adaKey ? null : h('p', { class: 'hint', style: 'margin:8px 0 0' }, 'API key belum diisi, jadi pengambilan otomatis belum aktif. ',
       h('button', { class: 'lnk', type: 'button', style: 'background:none;border:0;color:var(--brown);text-decoration:underline;cursor:pointer;padding:0', onclick: () => go('pengaturan') }, 'Isi di Pengaturan'),
       '. Anda tetap bisa mengisi data di bawah secara manual.'),
     hasilBox,
@@ -1023,7 +1026,10 @@ function viewPengaturan(root) {
         )
       ),
       h('div', { class: 'card' }, h('h3', {}, 'Google Maps (untuk Audit Maps)'),
-        field('Google Places API key', text(s.mapsApiKey || '', (v) => (s.mapsApiKey = v.trim()), { type: 'password', ph: 'AIza…' }),
+        field('Outscraper API key', text(s.outscraperKey || '', (v) => (s.outscraperKey = v.trim()), { type: 'password', ph: 'Tempel key dari dashboard Outscraper' }),
+          'Dipakai lebih dulu jika diisi. Mengambil juga kategori sekunder, deskripsi, dan Google Posts. Kategori bisa muncul dalam bahasa Inggris; ubah manual bila perlu.'),
+        h('div', { style: 'height:12px' }),
+        field('Google Places API key (cadangan)', text(s.mapsApiKey || '', (v) => (s.mapsApiKey = v.trim()), { type: 'password', ph: 'AIza…' }),
           'Dipakai untuk mengambil nama, alamat, rating, jumlah ulasan, kategori, website, dan telepon dari Google Maps. Tanpa key, data bisnis tetap bisa diisi manual. Key disimpan di komputer ini.')
       ),
       h('div', { class: 'card' }, h('h3', {}, 'Penandatangan penawaran'),
