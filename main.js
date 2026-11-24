@@ -271,6 +271,7 @@ function petaOutscraper(o) {
     posts: Array.isArray(o.posts) && o.posts.length > 0,
     url: o.location_link || '',
     status: o.business_status || '',
+    verifikasi: o.verified === true ? true : o.verified === false ? false : null,
   };
 }
 
@@ -321,6 +322,7 @@ function petaSerpApi(o) {
     posts: false,
     url: o.place_id ? 'https://www.google.com/maps/place/?q=place_id:' + o.place_id : '',
     status: o.unclaimed_listing ? 'UNCLAIMED' : '',
+    verifikasi: o.unclaimed_listing ? false : true,
   };
 }
 
