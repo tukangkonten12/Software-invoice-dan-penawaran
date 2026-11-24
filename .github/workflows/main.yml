@@ -12,6 +12,8 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write       # diperlukan agar hasil build bisa diunggah ke halaman Releases
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -58,5 +60,16 @@ jobs:
           name: installer-${{ matrix.os }}
           if-no-files-found: error
           path: |
+            dist/*.exe
+            dist/*.dmg
+
+      # ---------- Rilis ----------
+      # Hanya berjalan saat workflow dipicu oleh tag versi (v1.0.1, dst.).
+      # File .exe / .dmg muncul langsung di halaman Releases, tanpa dibungkus zip.
+      - name: Rilis ke halaman Releases (hanya saat tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
             dist/*.exe
             dist/*.dmg
